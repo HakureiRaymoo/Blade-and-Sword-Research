@@ -183,6 +183,53 @@ def _cmd_extract(args) -> int:
     return 0
 
 
+def _cmd_pack(args) -> int:
+    """Rebuild a `leyiLib2.0` archive from a directory of numbered entries.
+
+    Only used for modding: extract a library with ``extract``, replace one or
+    more ``NNNNN.bin`` files, then pack it back.  Entry order and count are
+    taken from the file names, so the directory must cover 0..N-1 with no gaps.
+    """
+    src = Path(args.dir)
+    entries: dict[int, Path] = {}
+    for p in src.iterdir():
+        if not p.is_file():
+            continue
+        stem = p.stem
+        if stem.isdigit():
+            entries[int(stem)] = p
+    if not entries:
+        print(f"{src}: no numbered files found", file=sys.stderr)
+        return 1
+    n = max(entries) + 1
+    missing = [i for i in range(n) if i not in entries]
+    if missing:
+        print(f"{src}: missing entries {missing[:10]}", file=sys.stderr)
+        return 1
+
+    payloads = [entries[i].read_bytes() for i in range(n)]
+    header_size = TABLE_OFFSET + n * 8
+    table = bytearray()
+    off = header_size
+    for data in payloads:
+        table += struct.pack("<II", off, len(data))
+        off += len(data)
+
+    out = Path(args.out)
+    with out.open("wb") as fh:
+        head = bytearray(TABLE_OFFSET)
+        head[: len(MAGIC)] = MAGIC
+        # the six bytes after the magic are 0xCC in every shipped library
+        head[len(MAGIC):0x10] = b"\x00" + b"\xcc" * 5
+        struct.pack_into("<I", head, 0x10, n)
+        fh.write(head)
+        fh.write(table)
+        for data in payloads:
+            fh.write(data)
+    print(f"packed {n} entries -> {out} ({out.stat().st_size:,} bytes)")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -202,6 +249,11 @@ def main(argv: list[str]) -> int:
     p_ext.add_argument("--start", type=int, default=0)
     p_ext.add_argument("--count", type=int, default=0, help="0 = to the end")
     p_ext.set_defaults(func=_cmd_extract)
+
+    p_pack = sub.add_parser("pack", help="rebuild an archive from numbered entries")
+    p_pack.add_argument("dir")
+    p_pack.add_argument("out")
+    p_pack.set_defaults(func=_cmd_pack)
 
     args = ap.parse_args(argv)
     return args.func(args)

@@ -97,6 +97,83 @@ class Fol:
         words = [(w - (99 * i * i + key)) & 0xFFFFFFFF for i, w in enumerate(words)]
         return struct.pack(f"<{n}I", *words) + blob[n * 4:]
 
+    @property
+    def trailer(self) -> bytes:
+        """The 0x61 dwords that follow the seed table at the end of the file."""
+        return self.data[len(self.data) - TRAILER_DWORDS * 4:]
+
+
+def _enc_dir(words: list[int], seed: int) -> bytes:
+    enc = [(w + (j * j * j * 9 + seed)) & 0xFFFFFFFF for j, w in enumerate(words)]
+    return struct.pack(f"<{len(enc)}I", *enc)
+
+
+def _enc_payload(blob: bytes, seed: int) -> bytes:
+    n = len(blob) // 4
+    words = list(struct.unpack_from(f"<{n}I", blob, 0))
+    words = [(w + (99 * i * i + seed)) & 0xFFFFFFFF for i, w in enumerate(words)]
+    return struct.pack(f"<{n}I", *words) + blob[n * 4:]
+
+
+def pack(root: str | Path, out: str | Path, source: Fol | None = None) -> dict:
+    """Build a `.fol` from a directory tree.
+
+    ``source`` (an already-opened original) supplies the seeds and the trailing
+    0x61 dwords so an unmodified extract repacks byte-identically.  Without it,
+    fresh random seeds are used and the trailer is zeroed.
+    """
+    root = Path(root)
+    files = sorted(p for p in root.rglob("*") if p.is_file())
+    names = [str(p.relative_to(root)).replace("/", "\\") for p in files]
+    for n in names:
+        if len(n.encode("gbk")) >= 0x80:
+            raise ValueError(f"name too long for the 128-byte field: {n}")
+
+    count = len(files)
+    orig: dict[str, bytes] = {}
+    if source is not None:
+        if source.count != count:
+            raise ValueError(f"source has {source.count} records, tree has {count}")
+        seeds = [r["seed"] for r in source.records]
+        trailer = source.trailer
+        orig = {r["name"]: r["raw"] for r in source.records}
+    else:
+        import random
+        rng = random.Random(0x5EED)
+        seeds = [rng.getrandbits(32) for _ in range(count)]
+        trailer = b"\0" * (TRAILER_DWORDS * 4)
+
+    table_size = 4 + count * REC
+    offsets = []
+    pos = table_size
+    blobs = []
+    for p in files:
+        blob = p.read_bytes()
+        offsets.append((pos, len(blob)))
+        blobs.append(blob)
+        pos += len(blob)
+
+    out_bytes = bytearray()
+    out_bytes += struct.pack("<I", count | 0x80000000)
+    for i, name in enumerate(names):
+        # Records carry more than name/offset/size: the block before +0x80 holds
+        # an author string and a few small fields.  Reuse the original record
+        # bytes when we have them, so only offset/size ever change.
+        base = bytearray(orig.get(name, bytes(REC)))
+        if name not in orig:
+            nb = name.encode("gbk")
+            base[:len(nb)] = nb
+        struct.pack_into("<II", base, 0x80, offsets[i][0], offsets[i][1])
+        out_bytes += _enc_dir(list(struct.unpack_from(f"<{REC_DWORDS}I", base, 0)), seeds[i])
+    for i, blob in enumerate(blobs):
+        out_bytes += _enc_payload(blob, seeds[i])
+    for s in seeds:
+        out_bytes += struct.pack("<I", s)
+    out_bytes += trailer
+
+    Path(out).write_bytes(bytes(out_bytes))
+    return {"count": count, "bytes": len(out_bytes), "out": str(out)}
+
     def close(self) -> None:
         pass
 
@@ -104,11 +181,22 @@ class Fol:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--game", default=GAME)
-    ap.add_argument("cmd", choices=["list", "extract", "info"])
+    ap.add_argument("cmd", choices=["list", "extract", "info", "pack"])
     ap.add_argument("file")
     ap.add_argument("--out", default=r"D:\DSH WORK SPACE\Blade-and-Sword-Modernized\out\fol")
     ap.add_argument("--limit", type=int, default=40)
+    ap.add_argument("--from", dest="source", default="",
+                    help="original .fol to reuse seeds/trailer from when packing")
     a = ap.parse_args(argv)
+
+    if a.cmd == "pack":
+        src = None
+        if a.source:
+            sp = a.source if os.path.isabs(a.source) else os.path.join(a.game, a.source)
+            src = Fol(sp)
+        info = pack(a.file, a.out, src)
+        print(f"packed {info['count']} files -> {info['out']} ({info['bytes']:,} bytes)")
+        return 0
 
     path = a.file if os.path.isabs(a.file) else os.path.join(a.game, a.file)
     fol = Fol(path)

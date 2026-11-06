@@ -10,12 +10,14 @@
 
 已完成对 Steam 版《上古传说》（app `2924510`）安装目录的逐字节勘察：资源容器、音频、视频、数据表、存档、引擎结构均已定位，其中 `leyiLib2.0` 容器已写出可用解析器并通过全部 5 个库的结构校验。
 
+**当前阶段：在原版上做 MOD**（见 [docs/03-modding-on-original.md](docs/03-modding-on-original.md)）。两类容器都写好了 packer 并通过**逐字节往返验证**，改完能原样装回去。
+
 ## 目录
 
 | 路径 | 内容 |
 | --- | --- |
 | [`research/`](research/README.md) | 原始勘察记录：容器格式、数据表、引擎与运行时 |
-| [`docs/`](docs/00-roadmap.md) | 设计与计划：路线图、现代化策略、[待办与未解项](docs/02-open-tasks.md) |
+| [`docs/`](docs/00-roadmap.md) | 设计与计划：路线图、现代化策略、[待办与未解项](docs/02-open-tasks.md)、[在原版上做 MOD](docs/03-modding-on-original.md) |
 | [`tools/rekit/`](tools/rekit/README.md) | 资源工具箱（Python，无第三方依赖） |
 | [`tools/ce/`](tools/ce/README.md) | 在 Cheat Engine 里手动执行的抓取脚本 |
 
