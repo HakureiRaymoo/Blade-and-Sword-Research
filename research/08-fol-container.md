@@ -1,128 +1,180 @@
-# `.fol` 容器：cj / mb / slr
+# `.fol` 容器：已完全解开
 
-三个文件是安装目录里**唯一还没打开**的数据容器。本文件记录到目前为止的全部实测。
+三个 `.fol` 是**带文件名的资源包**，格式与 `leyiLib2.0` 同源但多了两层混淆。
+`tools/rekit/fol.py` 可以完整列出与解包。
 
-| 文件 | 大小 | 头 4 字节 | 尾 16 字节 |
+| 文件 | 大小 | 条目数 | 内容 |
 | --- | --- | --- | --- |
-| `cj.fol` | 23,225,568 | `FF 00 00 80` | `CE DB E1 F6 8D 2C 3D AF 1A 35 80 11 4A C0 9E F9` |
-| `mb.fol` | 2,165,553 | `B0 00 00 80` | `DE F1 EB 08 6B A5 06 4D 66 CD 86 F2 18 25 B1 A4` |
-| `slr.fol` | 444,201 | `97 00 00 80` | `28 B8 80 E4 F7 3E 53 E9 FE 21 0E 7D 02 45 48 F8` |
-
-头 4 字节读成 u32 是 `0x80000097` / `0x800000B0` / `0x800000FF` —— 只有最低字节不同。
+| `cj.fol` | 23,225,568 | **255** | 64 个场景 × `.MAP` / `.BNT` / `.ONT` / `.Scn` |
+| `mb.fol` | 2,165,553 | **176** | **模板/模型包**：`Role.txt`、`Skill.ini`、`BLD_*.Mdl`、`player/`、`trigger/` |
+| `slr.fol` | 444,201 | **151** | 150 个 `.PLI` + **`SprRole.h`** |
 
 ---
 
-## 1. 引擎确实认识这三个名字（本轮新发现）
+## 1. 格式
 
-之前用"4 字符以上可打印串"扫 exe 时漏掉了它们，因为 `cj` / `slr` / `mb` / `fol` 都太短。
-按**字节**重新扫，在 `.rdata` 里发现它们**紧挨着排在一起**：
-
-```
-文件偏移 0x174110:  63 6a 00 00 | 73 6c 72 00 | 6d 62 00 00 | 66 6f 6c 00 | 5a 79 5c 50 69 78 65 6c ...
-送 VA:              00574110    00574114    00574118    0057411C
-                    "cj"        "slr"       "mb"        "fol"        "Zy\PixelGame.lib"
-```
-
-而 `FUN_00401050` 启动时把 B 组名字加进扩展名列表：
+### 目录
 
 ```
-00401447  PUSH 0x57411c  ("fol")   MOV ECX,0x58d88c   CALL 0x005446ee
-00401456  PUSH 0x574118  ("mb")    MOV ECX,0x58d870   CALL 0x0054074d
-00401465  PUSH 0x574114  ("slr")   MOV ECX,0x58d870   CALL 0x0054074d
-00401474  PUSH 0x574110  ("cj")    MOV ECX,0x58d870   CALL 0x0054074d
+u32  count_raw
+     count     = count_raw & 0x7fffffff
+     encrypted = (count_raw & 0x80000000) != 0      // 三个文件都是 1
+
+count × 0x88 字节   目录记录（0x88 = 136 字节 = 34 个 dword）
 ```
 
-`FUN_0054074d` 就是 `CStringList::AddTail`（Ghidra 对上了 VS2003 的库签名）。
-所以引擎里有一份 **"cj / slr / mb" 名字表**和一份 **"fol" 扩展名表**，
-路径是拼出来的（`<name>.<ext>`），这也解释了为什么整个 exe 里不存在 `.fol` 这个字符串。
+每条 0x88 记录：
 
-另外三个目录前缀也在同一片 `.rdata` 里：
-`"Slr\"` @ `00575784`（被 `00500F6C` 引用）、`"cj\"` @ `00575790`（被 `00501DAF`）、
-`"Zy\"` @ `0057578C`。
+| 偏移 | 含义 |
+| --- | --- |
+| `+0x00` | 文件名（`\0` 结尾，GBK；`cj.fol` 里带子目录，如 `000\000_001.PLI`） |
+| `+0x80` | 负载在文件内的偏移 |
+| `+0x84` | 负载大小 |
 
-**结论：这三个 `.fol` 文件不是残留物，是引擎会去拼接并读取的资源。**
+### 目录解密（`encrypted` 为真时）
+
+加密用的是 `FUN_004e9de0` 里这段：
+
+```c
+fseek(f, -(0x61 + count) * 4, SEEK_END);     // 末尾 0x61 个 dword 是尾巴，前面是种子表
+fread(seeds, count * 4, 1, f);
+
+for (i = 0; i < count; i++)
+    for (j = 0; j < 34; j++)
+        rec[i][j] -= j*j*j * 9 + seeds[i];    // mod 2^32
+```
+
+即每个 136 字节记录用**自己的种子**做三阶差分。
+
+### 负载解密（`FUN_004e9d30`）
+
+```c
+for (i = 0; i < size >> 2; i++)
+    dword[i] -= 99 * i*i + key;               // mod 2^32，尾部不足 4 字节的不管
+```
+
+`key` 就是该记录自己的种子 `seeds[i]`。
+
+> 这两层就是之前"熵 8.0、标准压缩全失败"的原因，也是"存在长递增 dword 串、
+> 二阶差分恒定"的原因 —— 那些串其实是**种子表**和加密后的标量数组。
+
+### 引擎入口
+
+| 函数 | 作用 |
+| --- | --- |
+| `FUN_004e25e0` | `InitGameFileProperty()`：拼 `<数据目录>\<名字>.fol`，逐个打开并解析 |
+| `FUN_004e9de0` | 解析头部 + 目录 + 种子，按需解密目录 |
+| `FUN_004e9c40` | 按文件名在目录里查 `(偏移, 大小)` |
+| `FUN_004e9d30` | 按 `(偏移, 大小, 种子)` 读出并解密负载 |
+
+名字表在 `.data`：`0x58d870`（`cj` / `slr` / `mb`）与 `0x58d88c`（`fol`），
+由 `FUN_00401050` 启动时用 `CStringList::AddTail` 填进去的。
 
 ---
 
-## 2. 内容分析：不是常见的压缩格式
+## 2. 内容清单
 
-| 指标 | `slr.fol` | `mb.fol` | `cj.fol` |
-| --- | --- | --- | --- |
-| 整体熵 | 7.993 bit/B | 7.980 | ~7.99 |
-| 前 64 字节熵 | 4.702 | — | — |
-| zlib / gzip / bz2 / lzma | 全部失败 | 全部失败 | 全部失败 |
-| 差分（累加）后熵 | 8.000 | 8.000 | — |
-| 逐字节 XOR 前一字节后熵 | 7.999 | 8.000 | — |
-
-所以既不是标准压缩，也不是"差分/异或"这种简单伪装。
-
-### 但也不是纯随机：存在长递增序列
-
-按 32 位读，文件里存在**极长的严格递增 dword 串**：
+### `cj.fol` —— 场景（64 套，每套 4 个文件）
 
 ```
-cj.fol : 第 1,542,984 个 dword 起连续 5151 个递增
-         0x36020009, 0x3604415C, 0x3606850B, 0x3608C980, ...
-         相邻差 0x24153, 0x243AF, 0x24475, 0x2453B, 0x24601 ...
-         二阶差分恒为 0xC6 / 0x6C6 —— 是**二次序列**（等差序列的累加）
-
-mb.fol : 连续 1063 个，二阶差分恒为 0xC6
-slr.fol: 连续 102 个，呈两组差值交替（0x274BC01 / 0x778101 轮换）
+1-0s.MAP   201,086   头 "LeyiMap1.50"
+1-0s.BNT     8,722
+1-0s.ONT     2,555
+1-0s.Scn       496   ← 纯文本 INI
 ```
 
-二次序列通常来自"每行长度线性增长的偏移表"，或者**定点数累加器**。
-这说明数据本身是有结构的标量数组，不是加密流。
+`1-0s.Scn` 解出来是这样的：
+
+```ini
+MapFile=1-0s.MAP
+BldFile=1-0s.BNT
+ObjFile=1-0s.ONT
+PortalNum=...
+```
+
+`.MAP` 头是 `LeyiMap1.50`，`.BNT` 推测是建筑层、`.ONT` 是物件层。
+
+### `mb.fol` —— 模板 / 模型（这是意外之喜）
+
+它是**开发期的数据目录**，整套原始工程文件都在里面：
+
+| 类别 | 文件 |
+| --- | --- |
+| 数据表 | `Role.txt`、`PropMdl.txt`、`RoleQuest.txt`、`TriggerQuest.txt`、`Text.txt`、`Dialog_Public1..3.txt`、`ScnInfo.txt`、`RoleEffectMdl.txt`、`RolePrivate.txt`、`RandProp.txt`、`PropUpgrade.txt`、`MethodPoint.txt` |
+| 技能 | `Skill.ini`(330 KB)、`SkillChild.ini`、`methodgroup.txt`、`Skill.gop`、`Role.rmd` |
+| 字体 | `Font.txt`、`Font2000.txt`、`Font98.txt`、`define.ini` |
+| **模型** | `BLD_Diyu.Mdl`、`BLD_Grave.Mdl`、`BLD_icecave.Mdl`、`BLD_Nanfang.Mdl`、`BLD_Ren.Mdl`、`BLD_Snow.Mdl` —— 头是 **`leyibld1.50`** |
+| 玩家 | `player/Init.txt`（角色基础属性表）、`player/skill.txt`（技能表）、`player/skill.xls`、`player/Init.xls`、`player/InitWWW.xls`、`player/vssver.scc` |
+| 触发 | `trigger/scene/`（61 个）、`trigger/talk/`（65 个）、`trigger/flag.txt` |
+
+`player/Init.txt` 是一张很干净的属性表：
+
+```
+名称  ID  AT  AT升级增加值  DF  DF升级增加值  ...  HP  HP升级增加值  回血率 ...
+男主角  4  40   4            30   4             ...  800  80  1.4
+女主角 30  30   3            40   5             ...  600  60  1
+```
+
+`trigger/scene/1-0s.txt` 是**触发器脚本**，一门小 DSL：
+
+```
+触发条件	触发结果	是否循环
+IsScnIn	ChangeAct 0
+IsScnIn*IsFlag Act1 0	ShowActForeword 123 1447 0*SetFlag Act1 1
+IsScnIn*IsFlag SY1 100 1	RemItem sws
+IsScnIn*IsFlag bq1 70 1	RemItem zhs
+```
+
+条件用 `*` 串联，动词有 `IsScnIn` / `IsFlag` / `SetFlag` / `SetFlagTable` / `ChangeAct` /
+`ShowActForeword` / `RemItem` / `ResetObj`。
+
+### `slr.fol` —— 精灵角色 + **名字映射表**
+
+150 个 `NNN\NNN_001.PLI`，头 `PLI\0`，正文里带 `Author : Seraph`。
+
+**真正值钱的是 `SprRole.h`（35 KB）** —— 一张生成的 C 头文件，
+把 `Spr` 库里的每个条目都起了名字：
+
+```c
+#define SPR_ROLE_000_TKS_001_001   639
+#define SPR_ROLE_000_TK_001_001    618
+#define SPR_ROLE_001_CAS_001_001     5
+#define SPR_ROLE_001_CA_001_001      4
+#define SPR_ROLE_001_HDS_001_001     3
+#define SPR_ROLE_001_LA_001_001    339
+#define SPR_ROLE_001_RA_001_001    341
+```
+
+名字结构是 `角色编号_部位_动作_变体`，部位缩写里能认出
+`TK`（躯干）/`HD`（头）/`LA`·`RA`（左右臂）/`CA`（?）/`S` 后缀（推测是朝向或带武器版本）。
+
+**这直接解决了"`Spr` 条目语义不明"的问题**：之前靠尺寸和帧数猜部件，
+现在可以直接按名字归类。
 
 ---
 
-## 3. 运行时：按抽样偏移在内存里找不到原文
-
-用 CE 在运行中的游戏（pid 20716，已进入地图场景）里按 AOB 搜三份文件的 16 字节片段：
-
-```
-slr.fol @0x30D40   -> 0 命中
-mb.fol  @0xF4240   -> 0 命中
-cj.fol  @0x989680  -> 0 命中
-```
-
-两种解释：
-
-1. 载入后被**解码/重排**到别的表示（最可能，因为第二节的二次序列说明它是标量表，
-   引擎很可能把它展开成指针/结构体数组）；
-2. 这个场景还没用到它们（比如只有某些地图/战斗才需要）。
-
----
-
-## 4. 下一步（按性价比排序）
-
-### N1. 确认读取时机（最省事）
-
-`.fol` 的 `LastAccessTime` 会随读取更新（本机 `DisableLastAccess=2`，即**启用**访问时间）。
-做法：
+## 3. 复现
 
 ```powershell
-# 游戏关掉之后
-$g='D:\STEAM\steamapps\common\刀剑封魔录外传：上古传说'
-Get-ChildItem $g -Filter *.fol | % { $_.LastAccessTime = '2020-01-01' }
-# 启动游戏，进到地图，退出，再看
-Get-ChildItem $g -Filter *.fol | Select Name,LastAccessTime
+cd tools\rekit
+python fol.py info    slr.fol
+python fol.py list    mb.fol  --limit 200
+python fol.py extract cj.fol  --out ..\..\out\fol\cj
+python fol.py extract mb.fol  --out ..\..\out\fol\mb
+python fol.py extract slr.fol --out ..\..\out\fol\slr
 ```
 
-时间被刷新 = 启动即读；没刷新 = 按需读（那时就要在特定场景里再测）。
+解包结果在 `out/fol/`（不进仓库）。
 
-### N2. 抓一次真实调用（最直接）
+---
 
-在 CE 里 hook `CreateFileA` / `fopen`，记录参数与返回句柄，再对句柄后的读缓冲区取样。
-断点只在启动瞬间命中几次，不会像之前 `timeGetTime` 那样把游戏搞崩。
-拿到缓冲区后可以直接和文件字节比对，判断"是否原样读入"。
+## 4. 由此打开的新问题
 
-### N3. 找解压函数（静态）
-
-`0x0054074d`（AddTail）所在的 `FUN_00401050` 只负责登记名字。
-消费这两份列表的代码应该也在 `0x4010xx`~`0x4021xx` 这一带（初始化块），
-可以从 `0x40203e`~`0x4020eb` 那一段往回追。
-
-### N4. 读 `slr` 模块的初始化
-
-BugLog 里有 `  Slr Init End`，说明有一个 `Slr` 模块的初始化函数。
-找到它（搜字符串 `0057428c` 的引用者是 `0x0040CC36`）就能看到它读什么、写什么。
+1. **`SprRole.h` 与 `Spr` 库对号**：宏值是 `Spr` 的条目下标吗？抽样核对一下
+   （`SPR_ROLE_001_RA_001_001 = 341`，而 `Spr#34` 是腿…… 需要用真实名字反查）。
+2. **`.Mdl`（`leyibld1.50`）与 `.MAP`（`LeyiMap1.50`）格式**：建筑层与地图层的
+   二进制结构，是以后做地图/场景重制的关键。
+3. **`.PLI` 结构**：150 个文件，`PLI\0` 头，里面应该就是 `Spr` 之外的那一层
+   "角色装配"数据。
+4. `player/*.xls` 是真正的 Excel 文件，里面可能有比 `txt` 更全的设计数据。
+5. `trigger/` 的 DSL 可以整理成文档，这是重制版做任务系统时的现成规格。
