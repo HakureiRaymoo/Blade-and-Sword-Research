@@ -72,13 +72,20 @@ def decode(data: bytes, libs=LIBS) -> list[dict]:
             # bits 24..31; FUN_005051e0 masks the index with 0xfffff while
             # reading the frame from >> 24, so split them the same way here.
             idx = ref & 0xFFFFF
+
+            def s16(v: int) -> int:
+                v &= 0xFFFF
+                return v - 0x10000 if v & 0x8000 else v
+
             subs.append({
                 "flag": flag, "ref": ref,
                 "lib": libs[lib] if lib < len(libs) else f"lib{lib}",
                 "index": idx, "frame": (ref >> 24) & 0xFF,
-                "A": A & 0xFFFF, "B": B & 0xFFFF,
-                "C": C & 0xFFFF, "D": D & 0xFFFF,
-                "off": ((A & 0xFFFF) - (C & 0xFFFF), (B & 0xFFFF) - (D & 0xFFFF)),
+                # A..D are signed 16-bit: values like 65531 mean -5, and using
+                # them unsigned blows the assembled canvas up to 65k pixels.
+                "A": s16(A), "B": s16(B),
+                "C": s16(C), "D": s16(D),
+                "off": (s16(A) - s16(C), s16(B) - s16(D)),
             })
         frames.append(subs)
     return frames
