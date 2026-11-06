@@ -14,6 +14,10 @@
 | 音频 | `sy/*.sy` 实为 RIFF WAV（44.1kHz/16bit/单声道） | 已验证（484/486） |
 | 视频 | `dhp/*.dhp` 实为 MPEG-1 Program Stream | 已验证（32/33） |
 | 数据表 | `bdh/<lang>/*.txt` 是 GBK 制表符分隔的纯文本表格 | 已验证 |
+| 全局编号 | `zy/idx.lib` 列出 14 个库，条目表首尾相接成 46527 条的全局编号空间 | 已验证（代码 + 统计） |
+| 图形ID | `Role.txt` 的 `图形ID` **全部**落在 `Spr`（0..1789），不指向 `ResPlayer1` | 已验证（250/250） |
+| `Spr` 条目 | 不是图片，是动作描述表；`ref` 用 bits[19:0]+bits[31:24] 编码条目号与帧号 | 部分验证 |
+| 失焦行为 | 非前台时画面 3 帧完全一致（0 像素变化），确认暂停 | 已验证（逐像素） |
 | 存档 | `save/*.sav` 是长度前缀字符串流，版本串 "1.5" | 已验证 |
 | 未知 | `cj.fol` / `mb.fol` / `slr.fol` 三个高熵容器 | 未解（疑似压缩或加密） |
 
@@ -26,6 +30,7 @@
 | [03-data-tables.md](03-data-tables.md) | 物品、角色、任务、对话表的字段结构 |
 | [04-engine-runtime.md](04-engine-runtime.md) | PE 结构、初始化时序、存档格式、待办逆向清单 |
 | [05-animation-layer.md](05-animation-layer.md) | Role.txt 动作编号、分层/分朝向精灵、实时抓帧与锚点实测方案 |
+| [06-combine-lib.md](06-combine-lib.md) | `idx.lib` 组合库与全局编号空间、`Spr` 描述表、失焦暂停实测与 cnc-ddraw 处置 |
 
 ## 复现方式
 
