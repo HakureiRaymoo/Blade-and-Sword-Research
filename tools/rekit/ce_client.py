@@ -45,7 +45,12 @@ class CEClient:
         header = self._read_exact(4)
         (size,) = struct.unpack("<I", header)
         payload = self._read_exact(size)
-        return json.loads(payload.decode("utf-8"))
+        # CE returns ANSI strings for module paths; be lenient about encoding.
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            text = payload.decode("gbk", "replace")
+        return json.loads(text)
 
     def lua(self, code: str) -> str:
         """Evaluate arbitrary Lua inside CE and return its string result."""
