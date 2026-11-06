@@ -15,8 +15,9 @@
 | 路径 | 内容 |
 | --- | --- |
 | [`research/`](research/README.md) | 原始勘察记录：容器格式、数据表、引擎与运行时 |
-| [`docs/`](docs/00-roadmap.md) | 设计与计划：路线图、现代化策略 |
+| [`docs/`](docs/00-roadmap.md) | 设计与计划：路线图、现代化策略、[待办与未解项](docs/02-open-tasks.md) |
 | [`tools/rekit/`](tools/rekit/README.md) | 资源工具箱（Python，无第三方依赖） |
+| [`tools/ce/`](tools/ce/README.md) | 在 Cheat Engine 里手动执行的抓取脚本 |
 
 ## 已勘察到的关键事实
 
@@ -28,6 +29,12 @@
 - **视频**：`dhp/*.dhp` 实为 MPEG-1 程序流，32 个。
 - **数据表**：`bdh/<lang>/*.txt` 是 GBK 制表符分隔的纯文本（物品 18 列、角色 47 列、任务、对话、字符串表），四语言各一套 —— **核心数值天生可编辑**。
 - **存档**：长度前缀字符串流，与 `Role.txt` 的字段同构。
+- **角色合成（已完全打通）**：`zy/idx.lib` 把 14 个库拼成 46527 条的全局编号空间；
+  `Spr` 是**组合动作表**（1786/1790 条，帧 × 层，每层 `ref + (A,B,C,D)`），
+  引用 `ResPlayer1`（角色帧包）与 `Res00`（图像）；绘制偏移 = `A−C, B−D`。
+  按"帧包块 % 8"分组叠加即可**纯离线重建完整分层角色**（含 8 朝向、斗笠、武器、影子）。
+- **仍待解决**：三个 `.fol` 容器（`cj` / `mb` / `slr`）、装备部件的时间轴、
+  失焦继续运行。见 [docs/02-open-tasks.md](docs/02-open-tasks.md)。
 
 细节与复现命令见 [`research/`](research/README.md)。
 
