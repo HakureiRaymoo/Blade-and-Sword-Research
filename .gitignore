@@ -12,3 +12,8 @@ out/
 ghidra_out/
 *.gpr
 *.rep/
+
+# 逆向工作目录（含原始 exe）
+rework/
+.re/
+
