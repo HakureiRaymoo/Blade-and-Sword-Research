@@ -39,8 +39,6 @@ def collect_parts(spr: LeyiLib, target: str = TARGET) -> list[dict]:
         parts.append({"entry": i, "frames": frames, "n_idx": len(idxs),
                       "span": (min(idxs), max(idxs)) if idxs else (-1, -1)})
     return parts
-
-
 def main(argv=None) -> int:
     from PIL import Image
 
@@ -52,6 +50,8 @@ def main(argv=None) -> int:
     ap.add_argument("--min-parts", type=int, default=50,
                     help="only use tables that reference at least this many bundle indices")
     ap.add_argument("--only", default="", help="comma list of Spr entries to force")
+    ap.add_argument("--target", default=TARGET,
+                    help="which library the part tables must reference (default ResPlayer1)")
     ap.add_argument("--scale", type=int, default=2)
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
@@ -87,7 +87,7 @@ def main(argv=None) -> int:
         except Exception:  # noqa: BLE001
             return None
 
-    parts = collect_parts(spr)
+    parts = collect_parts(spr, a.target)
     if a.only:
         wanted = {int(x) for x in a.only.split(",") if x.strip()}
         parts = [p for p in parts if p["entry"] in wanted]
@@ -151,3 +151,4 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
