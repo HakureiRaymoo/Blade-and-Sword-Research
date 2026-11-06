@@ -24,16 +24,20 @@
 
 ### A2. `.fol` 容器（`cj.fol` 23 MB / `mb.fol` 2.1 MB / `slr.fol` 444 KB）—— 进行中
 
-三个高熵容器，`leyiLib2.0` 那套解析器打不开。引擎字符串里有
-`  Slr Init End`、`slr\SprRole.h`、`MdlInitEnd`，说明 `slr` 是"精灵角色"模块。
+三个高熵容器，`leyiLib2.0` 那套解析器打不开。
 
-**已知**：
-- 头部 4 字节分别是 `97 00 00 80` / `B0 00 00 80` / `FF 00 00 80`（低字节不同，高字节固定 `80 00 00`）
-- 之后是高熵数据，但有肉眼可见的重复结构，例如 `… 07 B5 | B6 7B | F9 BA | B6 CF …`，
-  以及成片的 `xx B6 7B`、`xx F1 58`、`xx C7 47`（低位递增、高位固定）
-- exe 的 ASCII 字符串里**没有** `.fol` 字样（`%s%s.txt` / `%s%s.lib` 都有，`.fol` 没有）
+**已确认（2026-11-07）**：
+- 引擎**确实**会用它们：`.rdata` 里 `"cj" / "slr" / "mb" / "fol"` 四个字符串紧邻，
+  且 `FUN_00401050` 用 `CStringList::AddTail` 把 `cj/slr/mb` 加进名字表、
+  把 `fol` 加进扩展名表 —— 路径是拼出来的，所以整个 exe 里不存在 `.fol` 字面量
+- 内容不是常见压缩：zlib / gzip / bz2 / lzma 全失败；差分与逐字节 XOR 后熵仍为 8.0
+- 但不是随机噪声：按 dword 读存在极长严格递增串（`cj.fol` 有 5151 个），
+  **二阶差分恒为常数**（`0xC6` / `0x6C6`）→ 数据是"二次序列"，即等差序列的累加，
+  像线性增长的偏移表或定点累加器
+- 运行时按抽样偏移 AOB 搜索**0 命中** → 载入后被重排/解码，或该场景尚未用到
 
-**下一步**：见 [research/08-fol-container.md](../research/08-fol-container.md)。
+**下一步**：见 [research/08-fol-container.md](../research/08-fol-container.md) 的 N1~N4。
+最省事的是 N1：把三个文件的 `LastAccessTime` 清成 2020，重启游戏进地图再退出看是否被刷新。
 
 ### A3. 另外两个可玩角色
 
