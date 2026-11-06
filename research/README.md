@@ -25,6 +25,7 @@
 | [02-container-formats.md](02-container-formats.md) | `leyiLib2.0` / `lep` / `.sy` / `.dhp` / `.fol` 逐字节分析 |
 | [03-data-tables.md](03-data-tables.md) | 物品、角色、任务、对话表的字段结构 |
 | [04-engine-runtime.md](04-engine-runtime.md) | PE 结构、初始化时序、存档格式、待办逆向清单 |
+| [05-animation-layer.md](05-animation-layer.md) | Role.txt 动作编号、分层/分朝向精灵、实时抓帧与锚点实测方案 |
 
 ## 复现方式
 
@@ -38,3 +39,4 @@ $g  = "D:\STEAM\steamapps\common\刀剑封魔录外传：上古传说"
 ```
 
 > 注意：原始资源不进入本仓库。所有路径均指向本地安装目录，仓库只保存解析代码与分析结论。
+
