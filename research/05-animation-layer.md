@@ -145,6 +145,24 @@ CE 内 Lua 桥  →  命名管道 \\.\pipe\CE_MCP_Bridge_v99  →  ce_tcp_relay.
 
 `focus_probe.py` 已加 `--yes` 强制确认，默认拒绝下点。
 
+### 致命障碍：CE 本身会抢焦点
+
+用户观察到并确认：**CE 一执行操作就把前台抢走，游戏随之停住**。这解释了此前所有"断点装上了却 0 命中"的现象——采样时游戏早已不在前台，绘制分支根本不执行。
+
+另外，CE 只要开着模态窗口（例如 `Cheat Engine settings`），桥接调用就会**超时**：模态对话阻塞了 CE 的 Lua 执行线程。
+
+结论：在本机当前这套组合下（dgVoodoo 包装层 + CE 抢焦点 + 模态窗口），**硬件断点路线不可靠**，不作为主路径。
+
+### 静态路线：窗口过程在哪里
+
+- `RegisterClassA` 调用点 `0x542AB0`，`CreateWindowExA` 调用点 `0x5424DF`
+- `DefWindowProcA` 全程序只有一处调用：`0x5427A5`（一个只转调默认过程的壳）
+- `GetForegroundWindow` 调用点 `0x541D10`，该函数在检测到自己不在前台时**主动 `SetForegroundWindow` 抢回焦点**
+- 运行时 `GetClassLongPtr(GCLP_WNDPROC)` 返回 `0x5A592D40` = **DDRAW.dll+0x22D40**，即 dgVoodoo 子类化了窗口，游戏自己的窗口过程不在链顶
+
+因此"失焦停画"不是游戏单方面能修的：它要么在 dgVoodoo 那一层，要么需要改窗口过程链。
+
+
 ### 让游戏在后台继续渲染（待实施，方案为纯内存操作）
 
 游戏失焦时逻辑仍在跑（`timeGetTime` 持续命中）但不进入绘制分支。计划：

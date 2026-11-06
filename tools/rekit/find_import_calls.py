@@ -14,6 +14,8 @@ PATH = r"D:\DSH WORK SPACE\Blade-and-Sword-Modernized\rework\ComeOn.exe"
 WANTED = {
     "RegisterClassA", "CreateWindowExA", "DispatchMessageA", "GetMessageA",
     "PeekMessageA", "ShowWindow", "SetWindowPos", "TranslateMessage",
+    "DefWindowProcA", "SetCooperativeLevel", "GetForegroundWindow",
+    "GetActiveWindow", "IsIconic", "SetWindowLongA",
 }
 
 
@@ -80,3 +82,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
