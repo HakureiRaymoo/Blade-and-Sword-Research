@@ -1,73 +1,100 @@
-# Blade & Fairy: Reforged
+# 刀剑封魔录 · 上古传说 —— 逆向与研究
 
-> Merging *Blade & Fairy* (刀剑封魔录) and its expansion *Blade & Fairy: Legend of the Ancient* (刀剑封魔录·上古传说) into a single unified project — with rebuilt input logic, refined interactions, and full gamepad support.
+> Knowledge base for *Blade & Fairy* / *Blade & Fairy: Legend of the Ancient*
+> (Steam app `2924510`). Formats, engine structure, asset pipeline, and the
+> reproducible tools that produced every claim.
 
-将《刀剑封魔录》正传与《上古传说》合二为一的现代化项目：重构操作逻辑、优化交互、完整支持手柄。
+本仓库**只做知识与文档**：记录逆向结论、保存可复现的解析工具、不放任何游戏原始资源。
 
-## Status
+**做 MOD 在另一个仓库**（另行开启）：`Blade-and-Sword-Modernized`。
 
-**图像管线已打通。** 资源容器、`lep` 位图、音频、视频、数据表、存档、引擎结构均已定位并可用代码读取；`lep` 解码器已能批量导出地图、UI、立绘与角色动画帧（见 `out/` 下的验证图）。尚未可玩。
+---
 
-已完成对 Steam 版《上古传说》（app `2924510`）安装目录的逐字节勘察：资源容器、音频、视频、数据表、存档、引擎结构均已定位，其中 `leyiLib2.0` 容器已写出可用解析器并通过全部 5 个库的结构校验。
+## 状态
 
-**当前阶段：在原版上做 MOD**（见 [docs/03-modding-on-original.md](docs/03-modding-on-original.md)）。两类容器都写好了 packer 并通过**逐字节往返验证**，改完能原样装回去。
+| 层 | 结论 | 可信度 |
+| --- | --- | --- |
+| `leyiLib2.0` 容器（`zy/*.Lib`，25 个 / 约 2 GB） | 已解 | 逐字节 + 5 库结构校验 |
+| `lep` 位图（RGB565、行内"间隙+段"） | 已解 | 120 张图逐行验证 |
+| `.fol` 容器（`cj` / `mb` / `slr`） | 已解，可完整解包与重打包 | 三份解包→打包逐字节一致 |
+| `Spr` 组合动作表（角色分层） | 已解 | 1786/1786 条精确对齐字节数 |
+| 角色装配（部件 / 帧号 / 绘制偏移） | 已解，可离线重建完整角色 | 代码 + 文件 + 内存三方 |
+| 文本表 / 技能 / 触发器 / 场景摆位 | 已解（多为 GBK 纯文本） | 解包后可读 |
+| 音频 / 视频 | `sy`=WAV、`dhp`=MPEG-1 | 抽样全部通过 |
+| `.MAP` / `.Mdl` / `.BNT` / `.PLI` 内部结构 | **未解** | 见 [待办](docs/02-open-tasks.md) |
+| 失焦继续运行 | 未解 | 见 [待办](docs/02-open-tasks.md) |
+
+---
 
 ## 目录
 
 | 路径 | 内容 |
 | --- | --- |
-| [`research/`](research/README.md) | 原始勘察记录：容器格式、数据表、引擎与运行时 |
-| [`docs/`](docs/00-roadmap.md) | 设计与计划：路线图、现代化策略、[待办与未解项](docs/02-open-tasks.md)、[在原版上做 MOD](docs/03-modding-on-original.md) |
-| [`tools/rekit/`](tools/rekit/README.md) | 资源工具箱（Python，无第三方依赖） |
-| [`tools/ce/`](tools/ce/README.md) | 在 Cheat Engine 里手动执行的抓取脚本 |
+| [`research/`](research/README.md) | 逐项勘察记录（容器、位图、数据表、引擎、运行时、组合表、`.fol`） |
+| [`docs/`](docs/00-roadmap.md) | 路线图、[待办与未解项](docs/02-open-tasks.md)、[改造面地图](docs/03-modding-on-original.md)、[可玩角色](docs/05-playable-characters.md)、[Boss/剧本](docs/06-xuehongying-boss.md) |
+| [`tools/rekit/`](tools/rekit/README.md) | 解析/导出/重打包工具（Python 标准库，无第三方依赖） |
+| [`tools/ce/`](tools/ce/README.md) | 在 Cheat Engine 里手动执行的运行时抓取脚本 |
 
-## 已勘察到的关键事实
+> `tools/` 保留在这边的理由：文档里每一条结论都注明"用哪条命令复现"，
+> 工具本身就是证据链的一部分。MOD 工程那边会直接引用/复制这些工具。
 
-- **引擎**：自研 Leyi 引擎（`leyiLib2.0` / `LeyiMap1.50` / `LeyiInit1.00`），`ComeOn.exe` 为 2003 年构建的 32 位 MSVC 程序，图形走 **纯 DirectDraw**，音频 DirectSound，RIFF/AVI 经 WINMM。
-- **官方"移植"= 原版 exe + 兼容层**：随包附带 dgVoodoo2 与 cnc-ddraw，加 CRT/xBR/FSR 等后处理着色器。引擎本身几乎未改 —— 现代化的空间在上层。
-- **资源库**：`zy/*.Lib` 共 25 个，格式为 `0x100 头 + 8N 索引表 + 连续负载`，库内**无文件名**，只按序号寻址。
-- **图像**：库内为私有 `lep` 位图，**已解**：16 位 RGB565，行内"间隙 + 段"编码，无压缩无调色板。已在 120 张图上逐行验证，地图瓦片、UI 数字、人物立绘、Boss 动画全部成功导出。
-- **音频**：`sy/*.sy` 实为 WAV（44.1kHz/16bit/单声道），486 个。
-- **视频**：`dhp/*.dhp` 实为 MPEG-1 程序流，32 个。
-- **数据表**：`bdh/<lang>/*.txt` 是 GBK 制表符分隔的纯文本（物品 18 列、角色 47 列、任务、对话、字符串表），四语言各一套 —— **核心数值天生可编辑**。
-- **存档**：长度前缀字符串流，与 `Role.txt` 的字段同构。
-- **角色合成（已完全打通）**：`zy/idx.lib` 把 14 个库拼成 46527 条的全局编号空间；
-  `Spr` 是**组合动作表**（1786/1790 条，帧 × 层，每层 `ref + (A,B,C,D)`），
-  引用 `ResPlayer1`（角色帧包）与 `Res00`（图像）；绘制偏移 = `A−C, B−D`。
-  按"帧包块 % 8"分组叠加即可**纯离线重建完整分层角色**（含 8 朝向、斗笠、武器、影子）。
-- **仍待解决**：三个 `.fol` 容器（`cj` / `mb` / `slr`）、装备部件的时间轴、
-  失焦继续运行。见 [docs/02-open-tasks.md](docs/02-open-tasks.md)。
+---
 
-细节与复现命令见 [`research/`](research/README.md)。
+## 关键事实
 
-## Goals
+- **引擎**：自研 Leyi 引擎（`leyiLib2.0` / `LeyiMap1.50` / `LeyiInit1.00` / `leyibld1.50`），
+  `ComeOn.exe` 是 2003 年的 32 位 MSVC 程序，图形走**纯 DirectDraw**，音频 DirectSound。
+- **官方"移植" = 原版 exe + 兼容层**（随包附 dgVoodoo2 / cnc-ddraw + 后处理着色器），
+  引擎几乎没改 —— 现代化的空间全在上层。
+- **内建 client/server**：导入表里没有任何 socket，但存在 `ClientCreate` /
+  `Packet_Create_Client` / `OnlyServer` / `DaojianServer`，主窗口标题就是 `DaojianServer`
+  —— 逻辑与渲染同进程，用内部消息包通信。
+- **全局编号空间**：`zy/idx.lib` 列出 14 个库，条目表首尾相接成 **46527 条**的全局编号；
+  引用编码 `ref = 帧号<<24 | 库下标<<20 | 库内条目号`。
+- **角色合成**：`Spr` 是组合动作表（帧 × 层），每层 `ref + (A,B,C,D)`，
+  绘制偏移 = `A−C, B−D`；帧号 = `时间步×8 + 朝向`。
+  角色 = 同一"帧包块 % 8"的一组部件表，按层序叠加。
+- **`.fol` 是带文件名的资源包**，两层差分混淆：
+  `目录: rec[i][j] -= j³·9 + seed[i]`、`负载: dword[i] -= 99·i² + seed[i]`。
+- **`mb.fol` 里几乎是整套开发数据**：`Role.txt`、`Skill.ini`(330 KB)、`player/`（含 `.xls`）、
+  `trigger/`（126 个脚本）、`BLD_*.Mdl`（建筑模型）。
+- **`slr.fol` 里有 `SprRole.h`**：933 条 `#define SPR_ROLE_<角色>_<部位>_<动作>_<变体> <下标>`,
+  等于 `Spr` 库的官方命名表 —— 角色编号就是 `Role.txt` 的 `图形ID`。
+- **5 个可玩角色**：剑客(4) / 女侠(30) / 力士(40) / 和尚(223) / 老英雄(1)，
+  前四个分层可换装，老英雄是整图烘焙（所以没有装备外观）。
+- **数据表是 GBK 纯文本**（`Role.txt` 47 列、`PropMdl.txt` 18 列、`TriggerQuest.txt`…），
+  **核心数值天生可编辑**；`Role.txt` 的 `组` 是初始阵营，`脚数` 区分人形/野兽/飞行。
 
-- **Unified entry** — one launcher, two campaigns (base game + expansion), shared settings and input layer
-- **Rebuilt controls** — modern input buffering, dual-track special-move input (mouse gesture for KB/M, right-stick tracing or radial wheel for gamepad)
-- **Gamepad-first UI** — focus navigation for inventory, gem synthesis, quest log, and the combo editor
-- **Visual combo editor** — timeline/slot-based editing with live preview of frames and cancel windows
-- **Preserved core** — the combo-editing depth and semi-manual combat feel of the original are non-negotiable
+---
 
-## Non-goals
+## 复现
 
-- 3D remake / engine-level visual overhaul (out of scope for now)
-- Altering the original's combat balance or combo mechanics
-- Redistributing original assets
+```powershell
+$g = "D:\STEAM\steamapps\common\刀剑封魔录外传：上古传说"
+cd tools\rekit
 
-## Strategy
+# 容器
+python leylib.py info "$g\zy\*.Lib"
+python leylib.py list "$g\zy\Spr.lib" --limit 20
 
-采用双轨推进，详见 [docs/01-modernization-strategy.md](docs/01-modernization-strategy.md)：
+# .fol（解包到 out/fol）
+python fol.py info    mb.fol
+python fol.py extract mb.fol --out ..\..\out\fol\mb
 
-- **Track A（外挂式现代化）** — 保留原版程序，注入改造输入/显示，外部编辑器改数据。快、可验证。
-- **Track B（重制）** — Godot 4 + 导出资产 + 重新实现战斗。
+# 单张 lep / 组合表 / 整角色重建
+python lep_probe.py   --lib Res00 --entry 5943
+python scan_composite.py --lib Spr --limit 200 --show 2
+python render_character.py --frames 0,16,48,80 --cols 4 --out ..\..\out\shots\char.png
 
-Track A 的真正价值不只是"能玩"，而是**把原版当作 oracle**：hook 战斗状态机，采样帧级轨迹，作为重制版手感的验收标准。
+# 数据表画像与单元格编辑
+python table_profile.py --file "$g\bdh\chs\Role.txt" --out ..\..\docs\04-role-columns.md
+python table_edit.py    --file "$g\bdh\chs\Role.txt" --row 角色名称=剑客 --get 平时速度
+```
 
-## Tech
+---
 
-- 工具链：Python（标准库）、Ghidra（逆向）
-- 重制目标：Godot 4（待 M5 启动）
+## 免责
 
-## Legal
-
-*Blade & Fairy* and its expansion are © Pixel Software (像素软件). This is a non-commercial fan modernization project. No original assets are redistributed in this repository. If you are a rights holder with concerns, please open an issue.
+*Blade & Fairy*（刀剑封魔录）及其外传 © 像素软件。本项目是非商业的爱好者研究，
+仓库内**不包含任何游戏原始资源**；所有路径都指向本地安装目录，仅保存解析代码与结论。
+如权利方有异议，请开 issue。
