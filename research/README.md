@@ -8,6 +8,7 @@
 | 项 | 结论 | 可信度 |
 | --- | --- | --- |
 | 引擎 | 自研 "Leyi" 引擎（`leyiLib2.0` / `LeyiMap1.50` / `LeyiInit1.00` / `leyibld1.50`） | 已验证（exe 字符串） |
+| 引擎架构 | **内建 client/server**（`ClientCreate` / `Packet_Create_Client` / `OnlyServer` / `DaojianServer`），但导入表里没有 socket，逻辑与渲染在同一进程内用消息包通信 | 已验证（导入表 + 字符串） |
 | 可执行文件 | `ComeOn.exe`，32 位 MSVC，链接时间 2003-07-29，DirectDraw 7 + GDI | 已验证（PE 头） |
 | 主资源配置 | `zy/*.Lib`，自定义容器 `leyiLib2.0`：0x100 头 + 8N 索引表 + 连续负载 | 已验证（5 个库全部严格连续） |
 | 图像 | 库内条目为 `lep`：16 位 RGB565，行内"间隙+段"编码 | 已验证（120 张图逐行恒等式全通过） |
