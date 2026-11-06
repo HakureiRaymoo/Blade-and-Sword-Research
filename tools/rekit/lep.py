@@ -97,43 +97,28 @@ class LepImage:
 
     @property
     def canvas_bytes(self) -> int:
-        """Full scanline width in bytes, max over all rows."""
+        """Full scanline width in bytes, max over all rows.
+
+        Must use the same clamped run walk as :meth:`runs` -- reading a raw
+        ``count`` without clamping lets a malformed/truncated tail run run off
+        the end of the row and inflate the width by orders of magnitude (which
+        collapses every render to a 1px dot).
+        """
         best = 0
         for i in range(self.row_count):
-            r = self.row(i)
-            pos = 0
-            total = 0
-            while pos + 2 <= len(r):
-                gap = struct.unpack_from("<H", r, pos)[0]
-                pos += 2
-                total += gap
-                if pos + 2 > len(r):
-                    break
-                count = struct.unpack_from("<H", r, pos)[0]
-                pos += 2
-                total += count
-                pos += count
-            best = max(best, total)
+            runs = self.runs(i)
+            if not runs:
+                continue
+            xb, pix = runs[-1]
+            best = max(best, xb + len(pix))
         return best
 
     def width_check(self) -> list[int]:
         """Return per-row scanline totals; they should all be identical."""
         totals = []
         for i in range(self.row_count):
-            r = self.row(i)
-            pos = 0
-            total = 0
-            while pos + 2 <= len(r):
-                gap = struct.unpack_from("<H", r, pos)[0]
-                pos += 2
-                total += gap
-                if pos + 2 > len(r):
-                    break
-                count = struct.unpack_from("<H", r, pos)[0]
-                pos += 2
-                total += count
-                pos += count
-            totals.append(total)
+            runs = self.runs(i)
+            totals.append(runs[-1][0] + len(runs[-1][1]) if runs else 0)
         return totals
 
     @property
