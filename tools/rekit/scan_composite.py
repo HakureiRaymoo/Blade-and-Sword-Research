@@ -68,7 +68,10 @@ def decode(data: bytes, libs=LIBS) -> list[dict]:
             p += stride * 4
             flag, _x, ref, A, B, C, D = vals[:7]
             lib = (ref >> 20) & 0xF
-            idx = ref & 0xFF0FFFFF
+            # FUN_00505750 clears bits 20..23 and keeps the frame selector in
+            # bits 24..31; FUN_005051e0 masks the index with 0xfffff while
+            # reading the frame from >> 24, so split them the same way here.
+            idx = ref & 0xFFFFF
             subs.append({
                 "flag": flag, "ref": ref,
                 "lib": libs[lib] if lib < len(libs) else f"lib{lib}",

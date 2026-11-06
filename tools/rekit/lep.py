@@ -66,15 +66,21 @@ class LepImage:
         runs = self.runs(i)
         return runs[0] if runs else (0, b"")
 
-    def runs(self, i: int) -> list[tuple[int, bytes]]:
+    def runs(self, i: int, limit_x: int | None = None) -> list[tuple[int, bytes]]:
         """Decode row i into [(x_bytes, pixel_bytes), ...].
 
         Row layout is a repeating triple plus a terminator::
 
             gap:u16  count:u16  pixels[count]  gap:u16  count:u16  ...  gap:u16
 
-        Sum of all gaps and counts is constant per image (the scanline width),
-        so the trailing gap is the distance to the right edge.
+        For map and UI pictures the sum of all gaps and counts is constant per
+        image (the scanline width).  Diamond-shaped isometric sprites instead
+        vary per row, so the invariant is only "no row is wider than the
+        canvas".
+
+        The last row of a picture has no following offset to bound it, and some
+        entries carry extra payload after the picture, so `limit_x` lets the
+        caller stop the walk once the scanline width is reached.
         """
         r = self.row(i)
         pos = 0
@@ -83,11 +89,17 @@ class LepImage:
         while pos + 2 <= len(r):
             gap = struct.unpack_from("<H", r, pos)[0]
             pos += 2
+            if limit_x is not None and x + gap > limit_x:
+                break
             x += gap
             if pos + 2 > len(r):
                 break  # final gap: no run follows
             count = struct.unpack_from("<H", r, pos)[0]
             pos += 2
+            if limit_x is not None and x + count > limit_x:
+                count = max(0, limit_x - x)
+                out.append((x, r[pos:pos + count]))
+                break
             if pos + count > len(r):
                 count = len(r) - pos
             out.append((x, r[pos:pos + count]))
@@ -97,27 +109,28 @@ class LepImage:
 
     @property
     def canvas_bytes(self) -> int:
-        """Full scanline width in bytes, max over all rows.
+        """Full scanline width in bytes.
 
-        Must use the same clamped run walk as :meth:`runs` -- reading a raw
-        ``count`` without clamping lets a malformed/truncated tail run run off
-        the end of the row and inflate the width by orders of magnitude (which
-        collapses every render to a 1px dot).
+        Rows 0..n-2 are bounded by the next row offset, so they are reliable.
+        The last row is only used when the picture has a single row, because
+        for that one the table gives no end and the entry may carry extra
+        payload (see the docstring of `runs`).
         """
+        n = self.row_count
         best = 0
-        for i in range(self.row_count):
+        for i in range(max(1, n - 1)):
             runs = self.runs(i)
-            if not runs:
-                continue
-            xb, pix = runs[-1]
-            best = max(best, xb + len(pix))
+            if runs:
+                xb, pix = runs[-1]
+                best = max(best, xb + len(pix))
         return best
 
     def width_check(self) -> list[int]:
-        """Return per-row scanline totals; they should all be identical."""
+        """Per-row scanline totals, each bounded by the canvas width."""
+        limit = self.canvas_bytes
         totals = []
         for i in range(self.row_count):
-            runs = self.runs(i)
+            runs = self.runs(i, limit)
             totals.append(runs[-1][0] + len(runs[-1][1]) if runs else 0)
         return totals
 
@@ -157,7 +170,7 @@ class LepImage:
         w = self.canvas_bytes // bpp
         out = bytearray(w * h * 4)
         for y in range(h):
-            for xb, pix in self.runs(y):
+            for xb, pix in self.runs(y, self.canvas_bytes):
                 n = len(pix) // bpp
                 x0 = xb // bpp
                 if x0 >= w:
