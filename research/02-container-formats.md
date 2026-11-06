@@ -173,12 +173,30 @@ map_grave.lib      uniform-rows: 40    inconsistent: 0
 
 直接用 ffmpeg 即可转码；`TestDX.exe` / `LogAVI` 说明播放走的是 DirectShow/AVI 路径。
 
-## 6. `.fol` —— 未解容器
+## 6. `.fol` —— 已完全解开
 
-三个文件：`cj.fol`（23.2 MB）、`mb.fol`（2.17 MB）、`slr.fol`（444 KB）。
-`ComeOn.exe` 偏移 `0x17411c` 处紧邻存放着字面量 `cj\0slr\0mb\0fol`，说明扩展名由"名字 + .fol"拼接。
+> 本节最初记录的是"未解"状态与排查过程。**现已解开**，完整规格见
+> [08-fol-container.md](08-fol-container.md)；这里只留结论与当年的反证记录。
 
-已排除的可能：
+三个文件是**带文件名的资源包**，格式与 `leyiLib2.0` 同源，多两层差分混淆：
+
+```
+u32 count_raw            count = count_raw & 0x7fffffff，最高位 = 是否加密
+count × 0x88             目录记录：文件名 / +0x80 偏移 / +0x84 大小
+负载
+末尾 count × u32         每条的种子（后面还有 0x61 个 dword 的尾巴）
+```
+
+- 目录解密：`rec[i][j] -= j³·9 + seed[i]`
+- 负载解密：`dword[i] -= 99·i² + seed[i]`
+- 入口：`FUN_004e25e0`（就是 BugLog 里的 `InitGameFileProperty()`）
+- `tools/rekit/fol.py` 可 info / list / extract / **pack**，三份文件往返**逐字节一致**
+
+内容：`cj.fol` = 64 套场景（`.MAP/.BNT/.ONT/.Scn`）；`mb.fol` = 开发期数据目录
+（`Role.txt`、`Skill.ini`、`player/`、`trigger/`、`BLD_*.Mdl`）；`slr.fol` = 150 个
+`.PLI` 加 **`SprRole.h`** 命名表。
+
+当年排除过的假设（保留作证）：
 
 | 假设 | 反证 |
 | --- | --- |
@@ -186,9 +204,8 @@ map_grave.lib      uniform-rows: 40    inconsistent: 0
 | zlib/gzip 流 | 全片段扫描未见合法 `78 9C/01/DA` 头，也无 `1F 8B` |
 | `leyiLib2.0` 改名 | 头部不是 ASCII 魔数，且尾部无索引表 |
 
-现有证据：整体熵 7.91–7.96 bit/byte（接近随机），零字节占比仅 0.4%，头部 4 字节恒为 `0x800000NN`（NN 分别为 `0xFF` / `0xB0` / `0x97`）。
-
-`BugLog` 里的 `Slr Init End` 与 `slr.fol` 同名，说明它是某个独立子系统（Slr）的数据包；`cj` 与 `mb` 推测为场景与模板类数据。**下一步只能靠逆向 `ComeOn.exe` 中读取 `fol` 的那条路径**，见待办清单。
+当时觉得"熵 7.9 接近随机、头部恒为 `0x800000NN`"很神秘 —— 现在知道
+`NN` 就是目录记录数（151 / 176 / 255），`0x80000000` 是"已加密"标记。
 
 ## 7. 存档 `.sav`
 

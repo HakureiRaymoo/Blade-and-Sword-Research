@@ -38,7 +38,7 @@ Text.txt            UI 字符串表（id → 文本）
 | 文件 | 说明 |
 | --- | --- |
 | `ComeOn.exe` | 主程序，1.5 MB，32 位 MSVC，链接时间 2003-07-29，导入 `DDRAW.dll` / `GDI32.dll` |
-| `ComeOn.dll` | 288 KB，角色未定（可能是输入/加密辅助），待逆向 |
+| `ComeOn.dll` | 288 KB，**Steam DRM stub**（串里只有 `SteamAPI_Init`、`steam_appid.txt`、`Steam must be running…`），不含游戏逻辑 |
 | `launcher.exe` | 5.7 MB，含 libcurl 字符串，负责启动与联网（更新/统计），不是游戏本体 |
 | `D3D8.dll` / `D3DImm.dll` / `ddraw.dll` / `dgVoodoo.conf` | **dgVoodoo2** 转译层，把 D3D8/DirectDraw 调用转到现代图形 API |
 | `cnc-ddraw config.exe` / `ddraw.ini` | **cnc-ddraw**，另一套 DirectDraw 兼容层，与 dgVoodoo 叠用 |

@@ -65,13 +65,20 @@ $g  = "D:\STEAM\steamapps\common\刀剑封魔录外传：上古传说"
 ...   lep 帧
 ```
 
+## 已补齐（原先列在"尚未实现"里）
+
+- **帧锚点**：每层子图自带 `(A, B, C, D)`，绘制偏移 = `(A−C, B−D)`
+  → `scan_composite.py` / `render_composite.py` / `render_character.py`
+- **资源 ID → 名称映射**：`slr.fol` 里的 `SprRole.h`（`fol.py extract slr.fol` 取）
+- **重打包写回 `.Lib`**：`leylib.py pack`（往返逐字节一致）
+- **`.fol` 容器**：`fol.py` info / list / extract / pack（往返逐字节一致）
+- **数据表编辑与画像**：`table_edit.py`、`table_profile.py`
+
 ## 尚未实现
 
-- 帧锚点（每帧裁切框不同，回放需原点）
-- 资源 ID → 名称映射
-- 重打包写回 `.Lib`
-- `.fol` 容器（格式未解）
 - 数据表 `txt` ↔ JSON 无损转换
+- `.MAP` / `.Mdl` / `.BNT` / `.PLI` 四种二进制的解析
+- `lep` **编码器**（目前只能解码；换图要借用现成条目的字节）
 
 ## 约定
 
