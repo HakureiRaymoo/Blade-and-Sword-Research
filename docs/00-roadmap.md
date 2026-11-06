@@ -16,16 +16,19 @@
 
 **退出条件**：任一容器可以用自写代码遍历，且结构性问题（缺文件、长度不符）能被工具报出来。
 
-### M1 · 资产管线
+### M1 · 资产管线（进行中）
 
-- [ ] `lep` 像素解码：位深、调色板、RLE 规则
-- [ ] 用 `map_nanfang.lib` 的 6,300 张等长瓦片做穷举验证（应能拼出连续地图）
-- [ ] 批量导出：`lep` → PNG 图集 + JSON 图集描述
+- [x] `lep` 像素解码：RGB565 / 行内多段 / 无压缩
+- [x] 用 `map_nanfang.lib` 的 6,300 张等长瓦片做验证（全部 64×32，行宽对称变化）
+- [x] 批量导出：`.Lib` → PNG + `index.json`（`tools/rekit/export_assets.py`）
+- [x] 精灵帧包拆分（`u32 count + u32 offsets + lep[]`）
+- [ ] 帧锚点：每帧画布尺寸不同，需从 `lep` 头部找回原点，否则动画抖动
 - [ ] `id → 名称` 映射表：从 `Role.txt` / `PropMdl.txt` 的 ID 列 + `SoundMdl.sy` 建立
 - [ ] 音频/视频转码：`.sy` → OGG，`.dhp` → MP4（ffmpeg 一把梭）
+- [ ] **重打包**：改图写回 `.Lib` 并保持索引连续
 - [ ] `.fol` 定位（与逆向并行）
 
-**退出条件**：`tools\rekit\export_assets.py --game <dir> --out <dir>` 一次产出全量图集 + 音视频 + 索引 JSON，且抽查 20 张图与游戏内画面一致。
+**退出条件**：`export_assets.py` 一次产出全量图集 + 音视频 + 索引 JSON，抽查 20 张图与游戏内画面一致。
 
 ### M2 · 数据管线
 
