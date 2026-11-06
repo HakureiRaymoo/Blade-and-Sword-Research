@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 本地产物（不进入仓库）
+out/
+.tmp-*/
+*.log
+
+# 逆向工作目录
+ghidra_out/
+*.gpr
+*.rep/
