@@ -93,12 +93,13 @@ if ($hwnd -eq [IntPtr]::Zero) {
 }
 Write-Host "hwnd: $hwnd"
 
+$dir = [System.IO.Path]::GetDirectoryName($Out)
+if (-not $dir) { $dir = (Get-Location).Path }
+if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+$base = [System.IO.Path]::GetFileNameWithoutExtension($Out)
+
 for ($i = 0; $i -lt $Count; $i++) {
-    $path = if ($Count -eq 1) { $Out } else {
-        [System.IO.Path]::Combine(
-            [System.IO.Path]::GetDirectoryName((Resolve-Path -LiteralPath '.').Path),
-            [System.IO.Path]::GetFileNameWithoutExtension($Out) + "_$i.bmp")
-    }
+    $path = if ($Count -eq 1) { $Out } else { Join-Path $dir ("{0}_{1}.bmp" -f $base, $i) }
     $res = [WinCap]::Grab($hwnd, $path)
     Write-Host "  $res -> $path"
     if ($i -lt $Count - 1) { Start-Sleep -Milliseconds $IntervalMs }
